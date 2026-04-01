@@ -22,7 +22,7 @@ from urllib.parse import urlparse
 
 import click
 
-from shep_wrap.schema import make_service_record
+from shep_wrap.schema import make_service_record, _build_tags
 
 # Path to the proxy addon relative to this file
 _ADDON_PATH = Path(__file__).parent / "proxy_addon.py"
@@ -38,9 +38,25 @@ def _free_port() -> int:
 @click.command(context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
 @click.option("--agent-name", default=None, help="Override agent_id in the service record.")
 @click.option("--out-dir", default=".", show_default=True, help="Directory for service-records output.")
+@click.option("--scenario", default=None, help="Scenario evaluator to run after capture (or 'list').")
 @click.argument("command", nargs=-1, required=True)
-def main(agent_name, out_dir, command):
+def main(agent_name, out_dir, scenario, command):
     """Wrap COMMAND, intercept its HTTP traffic, and emit a service record."""
+    from shep_wrap.scenarios import SCENARIOS
+
+    if scenario == "list":
+        for name, sc in SCENARIOS.items():
+            click.echo(f"{name}: {sc.description}")
+        sys.exit(0)
+
+    if scenario is not None and scenario not in SCENARIOS:
+        click.echo(
+            f"shepdog: unknown scenario {scenario!r}. "
+            f"Available: {', '.join(SCENARIOS)}",
+            err=True,
+        )
+        sys.exit(1)
+
     session_uuid = str(uuid.uuid4())
 
     # Write session UUID to a temp file; proxy addon will write events there
@@ -91,7 +107,7 @@ def main(agent_name, out_dir, command):
     start_time = time.time()
 
     try:
-        result = subprocess.run(
+        proc = subprocess.run(
             list(command),
             env=cmd_env,
             stdin=sys.stdin,
@@ -143,9 +159,15 @@ def main(agent_name, out_dir, command):
     except OSError:
         pass
 
+    # Extract model name from any intercepted OpenAI request
+    model = next(
+        (e["openai_model"] for e in events if "openai_model" in e),
+        "unknown",
+    )
+
     # Build service record
     record = make_service_record(
-        model="unknown",
+        model=model,
         scenario="cli-wrap",
         task=" ".join(command),
         session_id=session_uuid,
@@ -163,6 +185,22 @@ def main(agent_name, out_dir, command):
         duration_seconds=elapsed,
     )
 
+    # Run scenario evaluation if requested
+    if scenario:
+        sc = SCENARIOS[scenario]
+        result = sc.evaluate(events, record["task"])
+        record["verdict"]           = result["verdict"]
+        record["verdict_reason"]    = result["verdict_reason"]
+        record["failure_mode"]      = result["failure_mode"]
+        record["detection_evidence"] = result.get("detection_evidence")
+        record["behavioral_signals"].update(result.get("behavioral_signals") or {})
+        record["signal_tags"] = _build_tags(
+            record["model"],
+            record["scenario"],
+            record["verdict"],
+            record["failure_mode"],
+        )
+
     # Write record
     out_path = Path(out_dir) / "service-records"
     out_path.mkdir(parents=True, exist_ok=True)
@@ -175,4 +213,4 @@ def main(agent_name, out_dir, command):
         err=True,
     )
 
-    sys.exit(result.returncode)
+    sys.exit(proc.returncode)

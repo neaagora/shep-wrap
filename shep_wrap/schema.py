@@ -27,7 +27,7 @@ import uuid
 SCHEMA_VERSION        = "shepdog/service-record/v1"
 OBSERVER_INDEPENDENCE = "involuntary"
 OBSERVER_TYPE         = "external_wrapper"
-GENERATED_BY          = "shepdog-interceptor"
+GENERATED_BY          = "shep-wrap"
 
 FAILURE_MODES = {
     "helpful_lie": (
