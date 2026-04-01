@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shep-wrap"
+version = "0.1.0"
+description = "Wrap any agent subprocess and generate a shepdog/service-record/v1 record as an involuntary byproduct of execution."
+requires-python = ">=3.10"
+dependencies = [
+    "mitmproxy>=10",
+    "click>=8",
+]
+
+[project.scripts]
+shep-wrap = "shep_wrap.cli:main"
+shepdog   = "shep_wrap.report:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["shep_wrap*"]
