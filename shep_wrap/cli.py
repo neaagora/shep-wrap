@@ -207,10 +207,22 @@ def main(agent_name, out_dir, scenario, command):
     record_file = out_path / f"{session_uuid}.json"
     record_file.write_text(json.dumps(record, indent=2))
 
-    click.echo(
+    record_line = (
         f"shepdog: {len(events)} requests intercepted → "
-        f"record written to service-records/{session_uuid[:8]}.json",
-        err=True,
+        f"record written to service-records/{session_uuid[:8]}.json"
     )
+    verdict = record["verdict"]
+    if verdict != "UNKNOWN":
+        failure_mode = record.get("failure_mode") or "none"
+        click.echo(f"shepdog: {verdict} ({failure_mode})", err=True)
+        evidence = record.get("detection_evidence") or {}
+        for key, value in evidence.items():
+            if key != "pattern":
+                click.echo(f"  {key}: {value}", err=True)
+        if "pattern" in evidence:
+            click.echo(f"  pattern: {evidence['pattern']}", err=True)
+        click.echo(record_line, err=True)
+    else:
+        click.echo(record_line, err=True)
 
     sys.exit(proc.returncode)
