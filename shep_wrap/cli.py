@@ -86,6 +86,7 @@ def main(agent_name, out_dir, command):
     cmd_env["https_proxy"]          = proxy_url
     if _MITMPROXY_CERT.exists():
         cmd_env["REQUESTS_CA_BUNDLE"] = str(_MITMPROXY_CERT)
+        cmd_env["SSL_CERT_FILE"]      = str(_MITMPROXY_CERT)
 
     start_time = time.time()
 
